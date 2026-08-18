@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedCheck — Healthcare Misinformation Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a; --surface: #111827; --surface2: #1a2236;
+    --border: #1e2d45; --accent: #00d4ff; --accent2: #ff4757;
+    --accent3: #2ed573; --warn: #ffa502; --text: #e8eaf0;
+    --muted: #6b7a99; --font-mono: 'Space Mono', monospace;
+    --font-body: 'DM Sans', sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font-body); min-height:100vh; }
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image: linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),
+                      linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px);
+    background-size:40px 40px;
+  }
+  .container { max-width:1200px; margin:0 auto; padding:0 24px; position:relative; z-index:1; }
+
+  header {
+    border-bottom:1px solid var(--border); padding:20px 0;
+    background:rgba(10,14,26,0.95); backdrop-filter:blur(10px);
+    position:sticky; top:0; z-index:100;
+  }
+  .header-inner { display:flex; align-items:center; justify-content:space-between; }
+  .logo { font-family:var(--font-mono); font-size:1.2rem; color:var(--accent); letter-spacing:2px; }
+  .logo span { color:var(--text); }
+  .status-bar { display:flex; gap:20px; font-size:0.75rem; font-family:var(--font-mono); color:var(--muted); }
+  .status-item { display:flex; align-items:center; gap:6px; }
+  .dot { width:6px; height:6px; border-radius:50%; background:var(--muted); }
+  .dot.ok { background:var(--accent3); animation:pulse 2s infinite; }
+  .dot.err { background:var(--accent2); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  main { padding:40px 0 80px; }
+
+  .input-section {
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:32px; margin-bottom:24px; position:relative; overflow:hidden;
+  }
+  .input-section::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+    background:linear-gradient(90deg,var(--accent),transparent);
+  }
+  .section-label { font-family:var(--font-mono); font-size:0.7rem; color:var(--accent); letter-spacing:3px; text-transform:uppercase; margin-bottom:16px; }
+  .input-row { display:flex; gap:12px; align-items:flex-start; }
+  textarea {
+    flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+    padding:16px; color:var(--text); font-family:var(--font-body); font-size:0.95rem;
+    resize:none; outline:none; transition:border-color 0.2s; min-height:80px; line-height:1.6;
+  }
+  textarea:focus { border-color:var(--accent); }
+  textarea::placeholder { color:var(--muted); }
+  .btn-analyze {
+    background:var(--accent); color:#000; border:none; border-radius:10px;
+    padding:16px 28px; font-family:var(--font-mono); font-size:0.8rem; font-weight:700;
+    letter-spacing:1px; cursor:pointer; transition:all 0.2s; white-space:nowrap; min-width:130px;
+  }
+  .btn-analyze:hover { background:#33ddff; transform:translateY(-1px); }
+  .btn-analyze:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  .example-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+  .chip {
+    background:var(--surface2); border:1px solid var(--border); border-radius:20px;
+    padding:6px 14px; font-size:0.78rem; color:var(--muted); cursor:pointer; transition:all 0.2s;
+  }
+  .chip:hover { border-color:var(--accent); color:var(--accent); }
+
+  .steps-row { display:flex; gap:8px; margin-bottom:24px; align-items:center; }
+  .step-pill {
+    display:flex; align-items:center; gap:8px; background:var(--surface);
+    border:1px solid var(--border); border-radius:20px; padding:8px 16px;
+    font-size:0.75rem; font-family:var(--font-mono); color:var(--muted); transition:all 0.3s;
+  }
+  .step-pill.active { border-color:var(--accent); color:var(--accent); }
+  .step-pill.done   { border-color:var(--accent3); color:var(--accent3); }
+  .step-num { width:18px; height:18px; border-radius:50%; background:var(--surface2); display:flex; align-items:center; justify-content:center; font-size:0.65rem; }
+  .step-pill.active .step-num { background:var(--accent); color:#000; }
+  .step-pill.done .step-num   { background:var(--accent3); color:#000; }
+  .step-arrow { color:var(--border); }
+
+  .results-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:24px; }
+  .card {
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:24px; position:relative; overflow:hidden; transition:border-color 0.3s;
+  }
+  .card-label { font-family:var(--font-mono); font-size:0.65rem; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:12px; }
+  .verdict-value { font-family:var(--font-mono); font-size:1.6rem; font-weight:700; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px; }
+  .verdict-value.misinfo  { color:var(--accent2); }
+  .verdict-value.credible { color:var(--accent3); }
+  .verdict-value.uncertain { color:var(--warn); }
+  .confidence-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:0.72rem; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:1px; }
+  .conf-high   { background:rgba(46,213,115,0.15); color:var(--accent3); border:1px solid rgba(46,213,115,0.3); }
+  .conf-medium { background:rgba(255,165,2,0.15);  color:var(--warn);    border:1px solid rgba(255,165,2,0.3); }
+  .conf-low    { background:rgba(255,71,87,0.15);  color:var(--accent2); border:1px solid rgba(255,71,87,0.3); }
+
+  .gauge-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .gauge-canvas { width:140px !important; height:80px !important; }
+  .gauge-value { font-family:var(--font-mono); font-size:1.8rem; font-weight:700; text-align:center; margin-top:-8px; }
+  .gauge-sub { font-size:0.72rem; color:var(--muted); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:1px; }
+
+  .rag-list { display:flex; flex-direction:column; gap:10px; }
+  .rag-item { background:var(--surface2); border-radius:8px; padding:12px; border-left:3px solid var(--border); }
+  .rag-item.high-sim { border-left-color:var(--accent2); }
+  .rag-item.mid-sim  { border-left-color:var(--warn); }
+  .rag-item.low-sim  { border-left-color:var(--muted); }
+  .rag-claim { font-size:0.82rem; color:var(--text); margin-bottom:6px; line-height:1.4; }
+  .rag-meta  { display:flex; justify-content:space-between; align-items:center; }
+  .rag-source { font-size:0.7rem; color:var(--accent); font-family:var(--font-mono); }
+  .sim-bar-wrap { display:flex; align-items:center; gap:6px; }
+  .sim-bar-bg { width:60px; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .sim-bar-fill { height:100%; border-radius:2px; background:var(--accent); transition:width 0.8s ease; }
+  .sim-pct { font-size:0.68rem; color:var(--muted); font-family:var(--font-mono); min-width:32px; }
+
+  .bottom-grid { display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:24px; }
+  .reasoning-text { font-size:0.9rem; line-height:1.8; color:var(--text); opacity:0.85; }
+  .recommendation-box { margin-top:16px; background:var(--surface2); border-radius:8px; padding:14px; border-left:3px solid var(--accent); }
+  .rec-label { font-family:var(--font-mono); font-size:0.65rem; color:var(--accent); letter-spacing:2px; margin-bottom:6px; }
+  .recommendation-box p { font-size:0.85rem; color:var(--text); opacity:0.85; line-height:1.6; }
+  .chart-wrap { position:relative; height:150px; }
+  .history-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .history-item { display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--surface2); border-radius:8px; }
+  .history-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .dot-misinfo  { background:var(--accent2); }
+  .dot-credible { background:var(--accent3); }
+  .dot-uncertain { background:var(--warn); }
+  .history-text { flex:1; font-size:0.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .history-score { font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); flex-shrink:0; }
+
+  .provenance-section { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px; margin-bottom:24px; }
+  .provenance-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:16px; }
+  .prov-item { background:var(--surface2); border-radius:8px; padding:14px; text-align:center; }
+  .prov-val { font-family:var(--font-mono); font-size:1.1rem; font-weight:700; color:var(--accent); margin-bottom:4px; }
+  .prov-label { font-size:0.7rem; color:var(--muted); font-family:var(--font-mono); letter-spacing:1px; }
+
+  .spinner { width:28px; height:28px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-row { display:flex; align-items:center; gap:12px; padding:20px 0; }
+  .loading-txt { font-family:var(--font-mono); font-size:0.75rem; color:var(--accent); letter-spacing:2px; }
+
+  .empty-state { text-align:center; padding:48px 24px; color:var(--muted); }
+  .empty-icon { font-size:2.5rem; margin-bottom:16px; opacity:0.3; }
+  .empty-state p { font-size:0.9rem; }
+  .no-results { color:var(--muted); font-size:0.82rem; font-style:italic; }
+  .error-box { background:rgba(255,71,87,0.1); border:1px solid rgba(255,71,87,0.3); border-radius:8px; padding:16px; color:var(--accent2); font-size:0.85rem; }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">MED<span>CHECK</span></div>
+      <div class="status-bar">
+        <div class="status-item"><div class="dot" id="dot-dl"></div><span id="lbl-dl">DL MODEL</span></div>
+        <div class="status-item"><div class="dot" id="dot-rag"></div><span id="lbl-rag">RAG INDEX</span></div>
+        <div class="status-item"><div class="dot" id="dot-llm"></div><span id="lbl-llm">LLM</span></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+
+    
+    <div class="input-section">
+      <div class="section-label">// Input Claim</div>
+      <div class="input-row">
+        <textarea id="claimInput" placeholder="Enter a healthcare claim to analyse...&#10;e.g. Drinking bleach cures COVID-19." rows="3"></textarea>
+        <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">ANALYSE</button>
+      </div>
+      <div class="example-chips">
+        <span class="chip" onclick="setExample(this)">Bleach cures COVID-19</span>
+        <span class="chip" onclick="setExample(this)">Vaccines cause autism</span>
+        <span class="chip" onclick="setExample(this)">Antibiotics treat the flu</span>
+        <span class="chip" onclick="setExample(this)">5G networks spread coronavirus</span>
+        <span class="chip" onclick="setExample(this)">Exercise reduces heart disease risk</span>
+        <span class="chip" onclick="setExample(this)">Washing hands prevents infection</span>
+      </div>
+    </div>
+
+    
+    <div class="steps-row">
+      <div class="step-pill" id="step1"><div class="step-num">1</div>DL CLASSIFIER</div>
+      <div class="step-arrow">›</div>
+      <div class="step-pill" id="step2"><div class="step-num">2</div>RAG RETRIEVAL</div>
+      <div class="step-arrow">›</div>
+      <div class="step-pill" id="step3"><div class="step-num">3</div>LLM DECISION</div>
+      <div class="step-arrow">›</div>
+      <div class="step-pill" id="step4"><div class="step-num">4</div>PROVENANCE</div>
+    </div>
+
+    
+    <div class="results-grid">
+      <div class="card" id="verdictCard">
+        <div class="card-label">// Verdict</div>
+        <div class="empty-state"><div class="empty-icon">⬡</div><p>Submit a claim to see the verdict</p></div>
+      </div>
+      <div class="card" id="scoreCard">
+        <div class="card-label">// DL Model Score</div>
+        <div class="empty-state"><div class="empty-icon">◎</div><p>Risk score will appear here</p></div>
+      </div>
+      <div class="card" id="ragCard">
+        <div class="card-label">// RAG Knowledge Matches</div>
+        <div class="empty-state"><div class="empty-icon">⬡</div><p>Evidence matches will appear here</p></div>
+      </div>
+    </div>
+
+    
+    <div class="bottom-grid">
+      <div class="card" id="reasoningCard">
+        <div class="card-label">// LLM Reasoning</div>
+        <div class="empty-state"><div class="empty-icon">◈</div><p>LLM reasoning will appear here</p></div>
+      </div>
+      <div class="card">
+        <div class="card-label">// Session History</div>
+        <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
+        <div class="history-list" id="historyList"><div class="no-results">No analyses yet</div></div>
+      </div>
+    </div>
+
+    
+    <div class="provenance-section">
+      <div class="section-label">// Provenance Record</div>
+      <div class="provenance-grid">
+        <div class="prov-item"><div class="prov-val" id="pv-time">—</div><div class="prov-label">TIMESTAMP</div></div>
+        <div class="prov-item"><div class="prov-val" id="pv-sources">—</div><div class="prov-label">CITED SOURCES</div></div>
+        <div class="prov-item"><div class="prov-val" id="pv-score">—</div><div class="prov-label">DL RISK SCORE</div></div>
+        <div class="prov-item"><div class="prov-val" id="pv-total">—</div><div class="prov-label">TOTAL ANALYSED</div></div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+
+  const sessionHistory = [];
+let histChart = null;
+let totalCount = 0;
+const API_BASE = "http://localhost:5000";
+
+function initChart() {
+  const ctx = document.getElementById("historyChart").getContext("2d");
+  histChart = new Chart(ctx, {
+    type: "bar",
+    data: { labels: [], datasets: [{ label: "Risk", data: [], backgroundColor: [], borderRadius: 4, borderSkipped: false }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `Risk: ${(c.raw*100).toFixed(0)}%` } } },
+      scales: {
+        x: { grid: { color: "rgba(255,255,255,0.03)" }, ticks: { color: "#6b7a99", font: { family: "Space Mono", size: 9 } } },
+        y: { min: 0, max: 1, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#6b7a99", font: { family: "Space Mono", size: 9 }, callback: v => (v*100)+"%" } }
+      }
+    }
+  });
+}
+
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API_BASE}/api/health`);
+    const d = await r.json();
+    setDot("dl",  d.dl_model,  "DL MODEL");
+    setDot("rag", d.rag_index, "RAG INDEX");
+    setDot("llm", d.ollama,    "LLM");
+  } catch {
+    setDot("dl",  false, "DL MODEL");
+    setDot("rag", false, "RAG INDEX");
+    setDot("llm", false, "LLM");
+  }
+}
+
+function setDot(id, ok, label) {
+  const dot = document.getElementById(`dot-${id}`);
+  dot.className = "dot " + (ok ? "ok" : "err");
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById("step" + i);
+    el.classList.remove("active", "done");
+    if (i < n) el.classList.add("done");
+    else if (i === n) el.classList.add("active");
+  }
+}
+function resetSteps() {
+  for (let i = 1; i <= 4; i++) document.getElementById("step"+i).classList.remove("active","done");
+}
+
+function setExample(el) { document.getElementById("claimInput").value = el.textContent; }
+
+function setLoading(cardId, msg) {
+  document.getElementById(cardId).innerHTML = `
+    <div class="card-label">// ${cardId === "verdictCard" ? "Verdict" : cardId === "scoreCard" ? "DL Model Score" : cardId === "ragCard" ? "RAG Knowledge Matches" : "LLM Reasoning"}</div>
+    <div class="loading-row"><div class="spinner"></div><div class="loading-txt">${msg}</div></div>
+  `;
+}
+
+async function analyze() {
+  const text = document.getElementById("claimInput").value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById("analyzeBtn");
+  btn.disabled = true;
+  btn.textContent = "ANALYSING...";
+  resetSteps();
+
+  // Show loading states
+  setLoading("verdictCard",   "PROCESSING...");
+  setLoading("scoreCard",     "SCORING...");
+  setLoading("ragCard",       "SEARCHING INDEX...");
+  setLoading("reasoningCard", "WAITING FOR LLM...");
+
+  // Animate steps as we go
+  setStep(1);
+  await delay(400);
+  setStep(2);
+  await delay(300);
+  setStep(3);
+
+  try {
+    // Call the real Flask API
+    const resp = await fetch(`${API_BASE}/api/analyse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || "API error");
+    }
+
+    const prov = await resp.json();
+      // Handle rejected input
+    if (prov.rejected) {
+      document.getElementById("verdictCard").innerHTML = `
+        <div class="card-label">// Verdict</div>
+        <div class="verdict-value" style="color:var(--muted);">NOT A HEALTH CLAIM</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-top:8px;">${prov.reason}</p>`;
+      document.getElementById("scoreCard").innerHTML = `<div class="card-label">// DL Model Score</div><p class="no-results">Skipped.</p>`;
+      document.getElementById("ragCard").innerHTML = `<div class="card-label">// RAG Knowledge Matches</div><p class="no-results">Skipped.</p>`;
+      document.getElementById("reasoningCard").innerHTML = `<div class="card-label">// LLM Reasoning</div><p class="no-results">Input rejected by pre-filter. Please enter a valid health claim.</p>`;
+      btn.disabled = false;
+      btn.textContent = "ANALYSE";
+      resetSteps();
+      return;
+    }
+    setStep(4);
+    await delay(200);
+
+    // Render results
+    renderVerdictCard(prov);
+    renderScoreCard(prov.dl_score_misinfo);
+    renderRAGCard(prov.rag_hits || []);
+    renderReasoningCard(prov);
+    updateProvenance(prov);
+    addToHistory(prov, text);
+    totalCount++;
+
+  } catch (err) {
+    document.getElementById("verdictCard").innerHTML = `
+      <div class="card-label">// Verdict</div>
+      <div class="error-box">
+        <strong>Error:</strong> ${err.message}<br><br>
+        Make sure the Flask server is running:<br>
+        <code>python app.py</code>
+      </div>`;
+    resetSteps();
+  }
+
+  btn.disabled = false;
+  btn.textContent = "ANALYSE";
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function renderVerdictCard(prov) {
+  const v = prov.final_verdict || prov.llm_verdict;
+  const cls = { misinformation: "misinfo", credible: "credible", uncertain: "uncertain" }[v] || "";
+  const confCls = { high: "conf-high", medium: "conf-medium", low: "conf-low" }[prov.llm_confidence] || "conf-low";
+  document.getElementById("verdictCard").innerHTML = `
+    <div class="card-label">// Verdict</div>
+    <div class="verdict-value ${cls}">${v.toUpperCase()}</div>
+    <span class="confidence-badge ${confCls}">${prov.llm_confidence} confidence</span>
+  `;
+}
+
+function renderScoreCard(score) {
+  const color = score > 0.65 ? "#ff4757" : score > 0.4 ? "#ffa502" : "#2ed573";
+  document.getElementById("scoreCard").innerHTML = `
+    <div class="card-label">// DL Model Score</div>
+    <div class="gauge-wrap">
+      <canvas id="gaugeCanvas" class="gauge-canvas" width="140" height="80"></canvas>
+      <div class="gauge-value">${(score*100).toFixed(0)}<span style="font-size:1rem;color:var(--muted)">%</span></div>
+      <div class="gauge-sub">Misinfo probability</div>
+    </div>
+  `;
+  drawGauge(score, color);
+}
+
+function drawGauge(score, color) {
+  const c = document.getElementById("gaugeCanvas");
+  if (!c) return;
+  const ctx = c.getContext("2d"), cx = 70, cy = 75, r = 55;
+  ctx.clearRect(0, 0, 140, 80);
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0);
+  ctx.strokeStyle = "#1a2236"; ctx.lineWidth = 10; ctx.lineCap = "round"; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + score * Math.PI);
+  ctx.strokeStyle = color; ctx.lineWidth = 10; ctx.lineCap = "round"; ctx.stroke();
+}
+
+function renderRAGCard(hits) {
+  if (!hits.length) {
+    document.getElementById("ragCard").innerHTML = `<div class="card-label">// RAG Knowledge Matches</div><p class="no-results">No similar patterns found in knowledge base.</p>`;
+    return;
+  }
+  const items = hits.map(h => {
+    const cls = h.similarity > 0.75 ? "high-sim" : h.similarity > 0.5 ? "mid-sim" : "low-sim";
+    return `<div class="rag-item ${cls}">
+      <div class="rag-claim">${h.claim}</div>
+      <div class="rag-meta">
+        <span class="rag-source">${h.source}</span>
+        <div class="sim-bar-wrap">
+          <div class="sim-bar-bg"><div class="sim-bar-fill" style="width:${h.similarity*100}%"></div></div>
+          <span class="sim-pct">${(h.similarity*100).toFixed(0)}%</span>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  document.getElementById("ragCard").innerHTML = `<div class="card-label">// RAG Knowledge Matches</div><div class="rag-list">${items}</div>`;
+}
+
+function renderReasoningCard(prov) {
+  const cites = (prov.cited_sources || []).slice(0, 2).map((s,i) =>
+    `<span style="display:inline-block;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);color:var(--accent);font-size:0.65rem;font-family:var(--font-mono);padding:2px 8px;border-radius:4px;margin-left:4px">[${i+1}] ${s.source}</span>`
+  ).join("");
+  document.getElementById("reasoningCard").innerHTML = `
+    <div class="card-label">// LLM Reasoning</div>
+    <p class="reasoning-text">${prov.llm_reasoning} ${cites}</p>
+    <div class="recommendation-box">
+      <div class="rec-label">RECOMMENDATION</div>
+      <p>${prov.llm_recommendation}</p>
+    </div>
+  `;
+}
+
+function updateProvenance(prov) {
+  const t = new Date(prov.timestamp);
+  document.getElementById("pv-time").textContent    = t.toLocaleTimeString();
+  document.getElementById("pv-sources").textContent = (prov.cited_sources || []).length;
+  document.getElementById("pv-score").textContent   = (prov.dl_score_misinfo * 100).toFixed(0) + "%";
+  document.getElementById("pv-total").textContent   = totalCount + 1;
+}
+
+function addToHistory(prov, text) {
+  sessionHistory.unshift({ prov, text });
+  const dotClass = { misinformation: "dot-misinfo", credible: "dot-credible", uncertain: "dot-uncertain" };
+  document.getElementById("historyList").innerHTML = sessionHistory.slice(0, 5).map(h => `
+    <div class="history-item">
+      <div class="history-dot ${dotClass[h.prov.final_verdict]}"></div>
+      <div class="history-text">${h.text}</div>
+      <div class="history-score">${(h.prov.dl_score_misinfo*100).toFixed(0)}%</div>
+    </div>
+  `).join("");
+
+  const labels = sessionHistory.slice(0, 8).reverse().map((_,i) => `#${i+1}`);
+  const data   = sessionHistory.slice(0, 8).reverse().map(h => h.prov.dl_score_misinfo);
+  const bgs    = data.map(s => s > 0.65 ? "rgba(255,71,87,0.7)" : s > 0.4 ? "rgba(255,165,2,0.7)" : "rgba(46,213,115,0.7)");
+  histChart.data.labels = labels;
+  histChart.data.datasets[0].data = data;
+  histChart.data.datasets[0].backgroundColor = bgs;
+  histChart.update();
+}
+
+initChart();
+checkHealth();
+setInterval(checkHealth, 10000); 
+
+document.getElementById("claimInput").addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.ctrlKey) analyze();
+});
+</script>
+</body>
+</html>

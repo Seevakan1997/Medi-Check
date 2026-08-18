@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MedCheck — Evaluation Results</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f5f7fa; color: #222; margin: 0; padding: 32px; }
+  h1   { font-size: 1.6rem; margin-bottom: 4px; }
+  p.sub { color: #888; font-size: 0.85rem; margin-bottom: 2rem; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 2rem; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 2rem; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .card  { background: #fff; border-radius: 10px; padding: 1.25rem; border: 1px solid #e2e4e8; }
+  .metric-val { font-size: 2.2rem; font-weight: 600; margin-bottom: 4px; }
+  .metric-lbl { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+  .blue { color: #2a78d6; }
+  .orange { color: #eb6834; }
+  img { width: 100%; border-radius: 8px; }
+  h2  { font-size: 1rem; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<h1>MedCheck — Model Evaluation Results</h1>
+<p class="sub">DistilBERT · PUBHEALTH dataset · 3,000 samples · 2 epochs · CPU training</p>
+
+<div class="grid4">
+  <div class="card" style="text-align:center">
+    <div class="metric-val blue">80.9%</div>
+    <div class="metric-lbl">Accuracy</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="metric-val orange">0.807</div>
+    <div class="metric-lbl">Macro F1</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="metric-val blue">0.831</div>
+    <div class="metric-lbl">Macro Precision</div>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="metric-val orange">0.813</div>
+    <div class="metric-lbl">Macro Recall</div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card"><h2>Per-class metrics</h2><img src="per_class_metrics.png"></div>
+  <div class="card"><h2>Confusion matrix</h2><img src="confusion_matrix.png"></div>
+</div>
+
+<div class="grid3">
+  <div class="card"><h2>ROC curve (AUC = 0.850)</h2><img src="roc_curve.png"></div>
+  <div class="card"><h2>Training loss</h2><img src="loss_curve.png"></div>
+  <div class="card"><h2>Dataset distribution</h2><img src="class_distribution.png"></div>
+</div>
+
+</body>
+</html>
