@@ -19,15 +19,23 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 sys.path.insert(0, os.path.dirname(__file__))
-from step3_run import load_dl_model, dl_score, llm_decide, build_provenance
+from step3_run import load_dl_model, dl_score, llm_decide, build_provenance, load_rag,rag_retrieve
 
 app = Flask(__name__, static_folder=".")
 CORS(app)
 
 # ── Load DL model once at startup ──────────────────────────────────────────
 print("Starting MedCheck API server...")
+
 print("Loading DL model...")
 MODEL, TOKENIZER = load_dl_model()
+
+print("Loading RAG database...")
+RAG_COLLECTION, RAG_ENCODER = load_rag()
+
+print("RAG database loaded successfully.")
+print(f"RAG entries: {RAG_COLLECTION.count()}")
+
 print("Ready.\n")
 
 OLLAMA_URL   = "http://localhost:11434/api/generate"
@@ -127,7 +135,31 @@ def llm_pre_filter(text):
 # ══════════════════════════════════════════════════════════════════════════
 
 def get_rag_hits(text):
-    return []
+    try:
+        print("      Encoding query...")
+        
+        hits = rag_retrieve(
+            text,
+            RAG_COLLECTION,
+            RAG_ENCODER
+        )
+
+        print(f"      RAG returned {len(hits)} hits")
+
+        for i, hit in enumerate(hits, 1):
+            print(
+                f"      [{i}] "
+                f"{hit['similarity']:.1%} - "
+                f"{hit['source']}"
+            )
+
+        return hits
+
+    except Exception as e:
+        import traceback
+        print("RAG ERROR:")
+        traceback.print_exc()
+        return []
 
 
 def format_context(hits):

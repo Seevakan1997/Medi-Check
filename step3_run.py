@@ -16,8 +16,8 @@ OLLAMA_URL   = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
 OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT", "180"))
 MAX_LEN      = 256
-TOP_K        = 2
-MIN_SIM      = 0.30
+TOP_K        = 4
+MIN_SIM      = 0.40
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 class MisinfoClassifier(nn.Module):
