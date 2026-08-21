@@ -174,7 +174,7 @@
 
     
     <div class="input-section">
-      <div class="section-label">// Input Claim</div>
+      <div class="section-label"> Input Claim</div>
       <div class="input-row">
         <textarea id="claimInput" placeholder="Enter a healthcare claim to analyse...&#10;e.g. Drinking bleach cures COVID-19." rows="3"></textarea>
         <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">ANALYSE</button>
@@ -203,15 +203,15 @@
     
     <div class="results-grid">
       <div class="card" id="verdictCard">
-        <div class="card-label">// Verdict</div>
+        <div class="card-label"> Verdict</div>
         <div class="empty-state"><div class="empty-icon">⬡</div><p>Submit a claim to see the verdict</p></div>
       </div>
       <div class="card" id="scoreCard">
-        <div class="card-label">// DL Model Score</div>
+        <div class="card-label"> DL Model Score</div>
         <div class="empty-state"><div class="empty-icon">◎</div><p>Risk score will appear here</p></div>
       </div>
       <div class="card" id="ragCard">
-        <div class="card-label">// RAG Knowledge Matches</div>
+        <div class="card-label"> RAG Knowledge Matches</div>
         <div class="empty-state"><div class="empty-icon">⬡</div><p>Evidence matches will appear here</p></div>
       </div>
     </div>
@@ -219,11 +219,11 @@
     
     <div class="bottom-grid">
       <div class="card" id="reasoningCard">
-        <div class="card-label">// LLM Reasoning</div>
+        <div class="card-label"> LLM Reasoning</div>
         <div class="empty-state"><div class="empty-icon">◈</div><p>LLM reasoning will appear here</p></div>
       </div>
       <div class="card">
-        <div class="card-label">// Session History</div>
+        <div class="card-label"> Session History</div>
         <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
         <div class="history-list" id="historyList"><div class="no-results">No analyses yet</div></div>
       </div>
@@ -231,7 +231,7 @@
 
     
     <div class="provenance-section">
-      <div class="section-label">// Provenance Record</div>
+      <div class="section-label"> Provenance Record</div>
       <div class="provenance-grid">
         <div class="prov-item"><div class="prov-val" id="pv-time">—</div><div class="prov-label">TIMESTAMP</div></div>
         <div class="prov-item"><div class="prov-val" id="pv-sources">—</div><div class="prov-label">CITED SOURCES</div></div>
@@ -267,6 +267,8 @@ function initChart() {
 }
 
 async function checkHealth() {
+  if (checkHealth.running) return;
+  checkHealth.running = true;
   try {
     const r = await fetch(`${API_BASE}/api/health`);
     const d = await r.json();
@@ -277,6 +279,8 @@ async function checkHealth() {
     setDot("dl",  false, "DL MODEL");
     setDot("rag", false, "RAG INDEX");
     setDot("llm", false, "LLM");
+  } finally {
+    checkHealth.running = false;
   }
 }
 
@@ -345,12 +349,12 @@ async function analyze() {
       // Handle rejected input
     if (prov.rejected) {
       document.getElementById("verdictCard").innerHTML = `
-        <div class="card-label">// Verdict</div>
+        <div class="card-label"> Verdict</div>
         <div class="verdict-value" style="color:var(--muted);">NOT A HEALTH CLAIM</div>
         <p style="font-size:0.82rem;color:var(--muted);margin-top:8px;">${prov.reason}</p>`;
-      document.getElementById("scoreCard").innerHTML = `<div class="card-label">// DL Model Score</div><p class="no-results">Skipped.</p>`;
-      document.getElementById("ragCard").innerHTML = `<div class="card-label">// RAG Knowledge Matches</div><p class="no-results">Skipped.</p>`;
-      document.getElementById("reasoningCard").innerHTML = `<div class="card-label">// LLM Reasoning</div><p class="no-results">Input rejected by pre-filter. Please enter a valid health claim.</p>`;
+      document.getElementById("scoreCard").innerHTML = `<div class="card-label"> DL Model Score</div><p class="no-results">Skipped.</p>`;
+      document.getElementById("ragCard").innerHTML = `<div class="card-label"> RAG Knowledge Matches</div><p class="no-results">Skipped.</p>`;
+      document.getElementById("reasoningCard").innerHTML = `<div class="card-label"> LLM Reasoning</div><p class="no-results">Input rejected by pre-filter. Please enter a valid health claim.</p>`;
       btn.disabled = false;
       btn.textContent = "ANALYSE";
       resetSteps();
@@ -370,10 +374,11 @@ async function analyze() {
 
   } catch (err) {
     document.getElementById("verdictCard").innerHTML = `
-      <div class="card-label">// Verdict</div>
+      <div class="card-label"> Verdict</div>
       <div class="error-box">
         <strong>Error:</strong> ${err.message}<br><br>
-        Make sure the Flask server is running:<br>
+        If this is a model timeout, confirm Ollama is running and try again.<br>
+        Otherwise make sure the Flask server is running:<br>
         <code>python app.py</code>
       </div>`;
     resetSteps();
@@ -390,7 +395,7 @@ function renderVerdictCard(prov) {
   const cls = { misinformation: "misinfo", credible: "credible", uncertain: "uncertain" }[v] || "";
   const confCls = { high: "conf-high", medium: "conf-medium", low: "conf-low" }[prov.llm_confidence] || "conf-low";
   document.getElementById("verdictCard").innerHTML = `
-    <div class="card-label">// Verdict</div>
+    <div class="card-label"> Verdict</div>
     <div class="verdict-value ${cls}">${v.toUpperCase()}</div>
     <span class="confidence-badge ${confCls}">${prov.llm_confidence} confidence</span>
   `;
@@ -399,7 +404,7 @@ function renderVerdictCard(prov) {
 function renderScoreCard(score) {
   const color = score > 0.65 ? "#ff4757" : score > 0.4 ? "#ffa502" : "#2ed573";
   document.getElementById("scoreCard").innerHTML = `
-    <div class="card-label">// DL Model Score</div>
+    <div class="card-label"> DL Model Score</div>
     <div class="gauge-wrap">
       <canvas id="gaugeCanvas" class="gauge-canvas" width="140" height="80"></canvas>
       <div class="gauge-value">${(score*100).toFixed(0)}<span style="font-size:1rem;color:var(--muted)">%</span></div>
@@ -422,7 +427,7 @@ function drawGauge(score, color) {
 
 function renderRAGCard(hits) {
   if (!hits.length) {
-    document.getElementById("ragCard").innerHTML = `<div class="card-label">// RAG Knowledge Matches</div><p class="no-results">No similar patterns found in knowledge base.</p>`;
+    document.getElementById("ragCard").innerHTML = `<div class="card-label"> RAG Knowledge Matches</div><p class="no-results">No similar patterns found in knowledge base.</p>`;
     return;
   }
   const items = hits.map(h => {
@@ -438,7 +443,7 @@ function renderRAGCard(hits) {
       </div>
     </div>`;
   }).join("");
-  document.getElementById("ragCard").innerHTML = `<div class="card-label">// RAG Knowledge Matches</div><div class="rag-list">${items}</div>`;
+  document.getElementById("ragCard").innerHTML = `<div class="card-label"> RAG Knowledge Matches</div><div class="rag-list">${items}</div>`;
 }
 
 function renderReasoningCard(prov) {
@@ -446,7 +451,7 @@ function renderReasoningCard(prov) {
     `<span style="display:inline-block;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);color:var(--accent);font-size:0.65rem;font-family:var(--font-mono);padding:2px 8px;border-radius:4px;margin-left:4px">[${i+1}] ${s.source}</span>`
   ).join("");
   document.getElementById("reasoningCard").innerHTML = `
-    <div class="card-label">// LLM Reasoning</div>
+    <div class="card-label"> LLM Reasoning</div>
     <p class="reasoning-text">${prov.llm_reasoning} ${cites}</p>
     <div class="recommendation-box">
       <div class="rec-label">RECOMMENDATION</div>
@@ -485,7 +490,7 @@ function addToHistory(prov, text) {
 
 initChart();
 checkHealth();
-setInterval(checkHealth, 10000); 
+setInterval(checkHealth, 30000);
 
 document.getElementById("claimInput").addEventListener("keydown", e => {
   if (e.key === "Enter" && e.ctrlKey) analyze();

@@ -14,11 +14,11 @@ CSV_PATH   = "data/health_fact.csv"
 MODEL_NAME = "distilbert-base-uncased"
 
 SAVE_PATH  = "model.pt"
-EPOCHS     = 2        
+EPOCHS     = 4        
 BATCH      = 32       
 LR         = 2e-5
 MAX_LEN    = 128      
-SAMPLE     = 3000     
+SAMPLE     = None     
 DEVICE     = "cuda" if torch.cuda.is_available() else "cpu"
 
 

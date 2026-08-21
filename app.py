@@ -31,7 +31,7 @@ MODEL, TOKENIZER = load_dl_model()
 print("Ready.\n")
 
 OLLAMA_URL   = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3"
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
 
 
 # ══════════════════════════════════════════════════════════════════════════

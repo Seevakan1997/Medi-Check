@@ -1,7 +1,7 @@
 """
 """
 
-import argparse, json, re, sys, torch
+import argparse, os, json, re, sys, torch, requests
 import torch.nn as nn, requests, chromadb
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
@@ -13,9 +13,10 @@ DB_PATH      = "chroma_db"
 COLLECTION   = "healthcare_misinfo"
 EMBED_MODEL  = "all-MiniLM-L6-v2"
 OLLAMA_URL   = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3"
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
+OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT", "180"))
 MAX_LEN      = 256
-TOP_K        = 3
+TOP_K        = 2
 MIN_SIM      = 0.30
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -148,11 +149,14 @@ def format_rag_context(hits):
         return "No similar known misinformation patterns found in the knowledge base."
     lines = ["Known misinformation reference entries from WHO/NHS/CDC:"]
     for i, h in enumerate(hits, 1):
+        claim = h["claim"][:300]
+        source = h["source"][:120]
+        rationale = h["rationale"][:400]
         lines.append(
-            f"\n[{i}] Claim    : {h['claim']}\n"
+            f"\n[{i}] Claim    : {claim}\n"
             f"    Verdict  : {h['verdict']}\n"
-            f"    Source   : {h['source']} — {h['url']}\n"
-            f"    Rationale: {h['rationale']}\n"
+            f"    Source   : {source}\n"
+            f"    Rationale: {rationale}\n"
             f"    Similarity to input: {h['similarity']:.0%}"
         )
     return "\n".join(lines)
@@ -209,6 +213,19 @@ UNCERTAINTY RULE:
 - Never use uncertain for well-known facts or well-known myths"""
 
 
+def fallback_decision(dl_result, reason):
+    """Use the classifier score when the optional local LLM is unavailable."""
+    score = dl_result["score_misinfo"]
+    verdict = "misinformation" if score >= 0.56 else "credible"
+    confidence = "medium" if score >= 0.71 or score <= 0.35 else "low"
+    return {
+        "verdict": verdict,
+        "confidence": confidence,
+        "reasoning": f"{reason} The result is based on the DL classifier score.",
+        "recommendation": "Review this result with current guidance from a qualified health professional.",
+    }
+
+
 def llm_decide(text, dl_result, rag_context):
     """
     Sends claim + DL score + RAG context to Ollama LLaMA.
@@ -232,9 +249,10 @@ Return JSON only."""
                 "prompt":  prompt,
                 "system":  SYSTEM_PROMPT,
                 "stream":  False,
-                "options": {"temperature": 0.1, "num_predict": 512},
+                "format":  "json",
+                "options": {"temperature": 0.1, "num_predict": 128},
             },
-            timeout=90
+            timeout=OLLAMA_TIMEOUT
         )
         resp.raise_for_status()
         raw = resp.json()["response"].strip()
@@ -246,7 +264,10 @@ Return JSON only."""
         print("     ollama serve")
         print("     ollama pull llama3")
         print("="*50)
-        sys.exit(1)
+        return fallback_decision(dl_result, "Ollama is unavailable.")
+    except requests.exceptions.Timeout:
+        print(f"LLM timed out after {OLLAMA_TIMEOUT:g}s; using the DL score fallback.")
+        return fallback_decision(dl_result, "The local language model did not respond in time.")
 
     
     raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
