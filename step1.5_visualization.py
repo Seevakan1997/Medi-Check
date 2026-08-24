@@ -24,7 +24,7 @@ MODEL_NAME = "distilbert-base-uncased"
 MODEL_PATH = "model.pt"
 MAX_LEN    = 128
 BATCH      = 32
-SAMPLE     = 3000
+SAMPLE     = None
 DEVICE     = "cuda" if torch.cuda.is_available() else "cpu"
 
 BLUE   = "#2a78d6"
